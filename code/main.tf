@@ -190,3 +190,29 @@ resource "google_compute_backend_service" "default" {
     group = google_compute_region_network_endpoint_group.cloudrun_neg.id
   }
 }
+
+
+#http redirect to https
+resource "google_compute_url_map" "https_redirect" {
+  name    = "${local.service_name}-https-redirect"
+  project = local.project_id
+  default_url_redirect {
+    https_redirect         = true
+    redirect_response_code = "MOVED_PERMANENTLY_DEFAULT"
+    strip_query            = false
+  }
+}
+
+resource "google_compute_target_http_proxy" "https_redirect" {
+  name    = "${local.service_name}-http-proxy-redirect"
+  project = local.project_id
+  url_map = google_compute_url_map.https_redirect.id
+}
+
+resource "google_compute_global_forwarding_rule" "https_redirect" {
+  name       = "${local.service_name}-lb-http-redirect"
+  project    = local.project_id
+  target     = google_compute_target_http_proxy.https_redirect.id
+  port_range = "80"
+  ip_address = google_compute_global_address.cloud_run_lb_address.address
+}
