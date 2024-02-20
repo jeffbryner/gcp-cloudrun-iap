@@ -115,3 +115,78 @@ resource "google_cloud_run_service_iam_policy" "noauth" {
 }
 
 
+# compute global address as a target for an A record
+resource "google_compute_global_address" "cloud_run_lb_address" {
+  project = local.project_id
+  name    = "${local.service_name}-cloudrun-lb-address"
+}
+
+
+# SSL cert
+resource "google_compute_managed_ssl_certificate" "default" {
+  provider = google-beta
+  project  = local.project_id
+
+  name = "${local.service_name}-cert"
+  managed {
+    domains = ["${local.service_name}.${var.domain_name}"]
+  }
+}
+
+
+# forwarding rule -> target http proxy -> url map -> NEG -> backend service -> cloud-run.
+# forwarding rule
+resource "google_compute_global_forwarding_rule" "default" {
+  name                  = "${local.service_name}-forwarding-rule"
+  project               = local.project_id
+  provider              = google-beta
+  ip_protocol           = "TCP"
+  load_balancing_scheme = "EXTERNAL"
+  port_range            = "443"
+  target                = google_compute_target_https_proxy.default.id
+  ip_address            = google_compute_global_address.cloud_run_lb_address.id
+}
+
+# url map
+resource "google_compute_url_map" "default" {
+  name            = "${local.service_name}-url-map"
+  project         = local.project_id
+  provider        = google-beta
+  default_service = google_compute_backend_service.default.id
+}
+
+# https proxy
+resource "google_compute_target_https_proxy" "default" {
+  name    = "${local.service_name}-https-proxy"
+  project = local.project_id
+
+  url_map = google_compute_url_map.default.id
+  ssl_certificates = [
+    google_compute_managed_ssl_certificate.default.id
+  ]
+}
+
+
+resource "google_compute_region_network_endpoint_group" "cloudrun_neg" {
+  provider              = google-beta
+  project               = local.project_id
+  name                  = "${local.service_name}-neg"
+  network_endpoint_type = "SERVERLESS"
+  region                = local.location
+  cloud_run {
+    service = google_cloud_run_service.default.name
+  }
+}
+
+resource "google_compute_backend_service" "default" {
+  name    = "${local.service_name}-backend"
+  project = local.project_id
+
+  protocol    = "HTTP"
+  port_name   = "http"
+  timeout_sec = 30
+
+  backend {
+    group = google_compute_region_network_endpoint_group.cloudrun_neg.id
+  }
+}

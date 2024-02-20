@@ -4,14 +4,20 @@ variable "project_id" {
   default     = ""
 }
 
+variable "default_region" {
+  description = "Default region to create resources where applicable."
+  type        = string
+  default     = "us-central1"
+}
+
 variable "service_name" {
   description = "The name of the function"
   type        = string
   default     = "ai-slackbot"
 }
 
-variable "default_region" {
-  description = "Default region to create resources where applicable."
+variable "domain_name" {
+  description = "Default domain name to use to create subdomains."
   type        = string
-  default     = "us-central1"
+  default     = "cloudrun"
 }
