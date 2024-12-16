@@ -18,4 +18,4 @@ flask_app = Flask(__name__)
 def hello_world():
     # a simple hello to help debug cloud run url access
     name = os.environ.get("NAME", "World")
-    return "HELLO {}!".format(name)
+    return f"HELLO {name}! It works!"
