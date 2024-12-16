@@ -21,3 +21,9 @@ variable "domain_name" {
   type        = string
   default     = "cloudrun"
 }
+
+variable "support_email" {
+  description = "The email to use for support in registring the oauth IAP brand"
+  type        = string
+  default     = "support@nowhere.com"
+}
