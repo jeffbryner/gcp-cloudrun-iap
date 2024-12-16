@@ -6,3 +6,12 @@ output "cloudrun_url" {
 output "load_balancer_ip" {
   value = google_compute_global_address.cloud_run_lb_address.address
 }
+
+output "client_id" {
+  value = google_iap_client.project_client.client_id
+}
+
+output "client_secret" {
+  value     = google_iap_client.project_client.secret
+  sensitive = true
+}

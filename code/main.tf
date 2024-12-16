@@ -45,6 +45,14 @@ resource "google_service_account" "cloudrun_service_identity" {
   account_id = "${local.service_name}-svc-account"
 }
 
+# service account for IAP
+resource "google_project_service_identity" "iap_identity" {
+  provider = google-beta
+
+  project = local.project_id
+  service = "iap.googleapis.com"
+}
+
 
 /**
 cloud build container
@@ -115,7 +123,8 @@ data "google_iam_policy" "noauth" {
   binding {
     role = "roles/run.invoker"
     members = [
-      "serviceAccount:${google_service_account.cloudrun_service_identity.email}"
+      "serviceAccount:${google_service_account.cloudrun_service_identity.email}",
+      "serviceAccount:service-${data.google_project.target.number}@gcp-sa-iap.iam.gserviceaccount.com"
     ]
   }
 }
@@ -161,26 +170,6 @@ resource "google_compute_global_forwarding_rule" "default" {
   ip_address            = google_compute_global_address.cloud_run_lb_address.id
 }
 
-# url map
-resource "google_compute_url_map" "default" {
-  name            = "${local.service_name}-url-map"
-  project         = local.project_id
-  provider        = google-beta
-  default_service = google_compute_backend_service.default.id
-}
-
-# https proxy
-resource "google_compute_target_https_proxy" "default" {
-  name    = "${local.service_name}-https-proxy"
-  project = local.project_id
-
-  url_map = google_compute_url_map.default.id
-  ssl_certificates = [
-    google_compute_managed_ssl_certificate.default.id
-  ]
-}
-
-
 resource "google_compute_region_network_endpoint_group" "cloudrun_neg" {
   provider              = google-beta
   project               = local.project_id
@@ -203,8 +192,31 @@ resource "google_compute_backend_service" "default" {
   backend {
     group = google_compute_region_network_endpoint_group.cloudrun_neg.id
   }
+  iap {
+
+    oauth2_client_id     = google_iap_client.project_client.client_id
+    oauth2_client_secret = google_iap_client.project_client.secret
+  }
 }
 
+# url map
+resource "google_compute_url_map" "default" {
+  name            = "${local.service_name}-url-map"
+  project         = local.project_id
+  provider        = google-beta
+  default_service = google_compute_backend_service.default.id
+}
+
+# https proxy
+resource "google_compute_target_https_proxy" "default" {
+  name    = "${local.service_name}-https-proxy"
+  project = local.project_id
+
+  url_map = google_compute_url_map.default.id
+  ssl_certificates = [
+    google_compute_managed_ssl_certificate.default.id
+  ]
+}
 
 #http redirect to https
 resource "google_compute_url_map" "https_redirect" {
@@ -231,8 +243,26 @@ resource "google_compute_global_forwarding_rule" "https_redirect" {
   ip_address = google_compute_global_address.cloud_run_lb_address.address
 }
 
-resource "google_iap_brand" "project_brand" {
-  support_email     = var.support_email
-  application_title = "Cloud IAP protected Application"
-  project           = local.project_id
+# can only create, not alter
+# use data reference after creation
+# gcloud iap oauth-brands list
+# resource "google_iap_brand" "project_brand" {
+#   support_email     = var.support_email
+#   application_title = "Cloud IAP protected Application"
+#   project           = local.project_id
+# }
+
+
+resource "google_iap_client" "project_client" {
+  display_name = "Cloud IAP protected client"
+  #brand        = data.google_iap_brand.project_brand.name
+  brand = "projects/821549410552/brands/821549410552"
+}
+
+# access to the IAP
+resource "google_iap_web_backend_service_iam_member" "member" {
+  project             = local.project_id
+  web_backend_service = google_compute_backend_service.default.name
+  role                = "roles/iap.httpsResourceAccessor"
+  member              = "domain:${var.domain_name}"
 }
