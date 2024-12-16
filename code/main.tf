@@ -232,7 +232,7 @@ resource "google_compute_global_forwarding_rule" "https_redirect" {
 }
 
 resource "google_iap_brand" "project_brand" {
-  support_email     = google_service_account.cloudrun_service_identity.email
+  support_email     = var.support_email
   application_title = "Cloud IAP protected Application"
   project           = local.project_id
 }
