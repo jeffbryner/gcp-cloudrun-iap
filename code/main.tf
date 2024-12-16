@@ -25,7 +25,8 @@ locals {
   services = [
     "secretmanager.googleapis.com",
     "run.googleapis.com",
-  "artifactregistry.googleapis.com"]
+    "artifactregistry.googleapis.com",
+  "iap.googleapis.com"]
 }
 
 
@@ -93,6 +94,14 @@ resource "google_cloud_run_service" "default" {
         }
       }
     }
+    metadata {
+      annotations = {
+        "run.googleapis.com/startup-cpu-boost" = "true",
+        "autoscaling.knative.dev/minScale"     = 1,
+        "run.googleapis.com/sessionAffinity"   = "true",
+        "run.googleapis.com/ingress"           = "internal-and-cloud-load-balancing"
+      }
+    }
   }
 
 }
@@ -101,7 +110,7 @@ data "google_iam_policy" "noauth" {
   binding {
     role = "roles/run.invoker"
     members = [
-      "allUsers",
+      "serviceAccount:${google_service_account.cloudrun_service_identity.email}"
     ]
   }
 }
@@ -215,4 +224,10 @@ resource "google_compute_global_forwarding_rule" "https_redirect" {
   target     = google_compute_target_http_proxy.https_redirect.id
   port_range = "80"
   ip_address = google_compute_global_address.cloud_run_lb_address.address
+}
+
+resource "google_iap_brand" "project_brand" {
+  support_email     = google_service_account.cloudrun_service_identity.email
+  application_title = "Cloud IAP protected Application"
+  project           = local.project_id
 }
