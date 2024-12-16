@@ -83,6 +83,12 @@ resource "google_cloud_run_service" "default" {
   project                    = local.project_id
   autogenerate_revision_name = true
 
+  metadata {
+    annotations = {
+      "run.googleapis.com/ingress" = "internal-and-cloud-load-balancing"
+    }
+  }
+
   template {
     spec {
       service_account_name = google_service_account.cloudrun_service_identity.email
@@ -94,16 +100,15 @@ resource "google_cloud_run_service" "default" {
         }
       }
     }
+
     metadata {
       annotations = {
         "run.googleapis.com/startup-cpu-boost" = "true",
         "autoscaling.knative.dev/minScale"     = 1,
         "run.googleapis.com/sessionAffinity"   = "true",
-        "run.googleapis.com/ingress"           = "internal-and-cloud-load-balancing"
       }
     }
   }
-
 }
 
 data "google_iam_policy" "noauth" {
